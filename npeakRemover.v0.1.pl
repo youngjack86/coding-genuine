@@ -89,7 +89,6 @@ sub initArgs{
 	}else{
 		die "[initArgs]: [ $options{r} ] file not exist!\n" unless(-e $options{r});
 	}
-### The threshold [ -t ] and the cutoff [ -c ] and the offset [ -s ]
 	if(!defined($options{t})){
 		$options{t} = 0.5/100;
 	}elsif($options{t}=~/^[1-9]?[0-9]+\.*[0-9]+$/ or $options{t}=~/^[1-9][0-9]?$/){
@@ -117,9 +116,6 @@ sub initArgs{
 	}
 }
 sub fastqNparser{
-## This function works only for one read of either read1/read2
-# input: fR_seq_arr_ref (from fastqReader function's last output, for only one read)
-# output: INFO_ARR: info_hash_ref (readlength => length, num_Ns => number_of_Ns, pos_arr_ref => N_pos_arr, pos_hash_ref => N_pos-content_hash )
 	my $fNp_seq_arr_ref = shift;
 	my $fNp_pattern = $options{g};
 	if(@_){
@@ -151,13 +147,11 @@ sub fastqNparser{
 	return($fNp_totalN,\@fNp_info_arr);
 }
 sub main(){
-	## initialize the default
 	initArgs;
 	my %stat;
 	$stat{'total'} = 0;
 	$stat{'keep'} = 0;
 	$stat{'drop'} = 0;
-#=block # shared part
 	my ($FHfwd,$FHrvs,$FHfwdw,$FHrvsw,$FHfwdadptw,$FHrvsadptw,$FHfwdDropw,$FHrvsDropw);
 	if(isZippedFile($options{f})){
 		$FHfwd = FileHandleManager("zr",$options{f},"FHfwd");
@@ -182,10 +176,6 @@ sub main(){
 		}
 
 	}
-#=cut # End of shared part
-#### Set random seed
-	srand(1927);
-#=block # Neo part
 	my %hash_count;
 	if(defined($options{m})){
 		my @pos_arrs = split /,/,$options{m};
@@ -360,7 +350,6 @@ sub main(){
 			}
 		}
 	}
-#=cut # End of Neo part
 	close $FHfwd;
 	close $FHfwdw;
 	if($options{k}){
@@ -413,8 +402,6 @@ sub getMaxPos($$$$){
 	return $gMP_oriMaxPos;
 }
 sub FileHandleManager($$){
-# input: r/w/zr/zw, filename
-# output: FHref
 	my $FHM_mode = shift;
 	my $FHM_file = shift;
 	my $FHM_name;
@@ -433,19 +420,15 @@ sub FileHandleManager($$){
 }
 
 sub fastqReader{
-# input: reference_of_opened_file_handle, number_of_reads
-# output: number_of_seq_cached, ref_to_header_arr(machine_flowcell_tile_x_y, no read info or index info),reference_of_cached_arr(corresponding to the 4 lines),ref_to_sequence_arr
 	my $fR_FH = shift;
 	my $fR_num = shift;
 	defined($fR_num) ? ($fR_num = $fR_num*4) : ($fR_num = 4);
 	my (@fR_id,@fR_arr,@fR_seq);
 	my $fR_cached_num = 0;
-#=block
 	while($fR_num > 0){
 		my $fR_line = <$fR_FH>;
 		last if(!defined($fR_line));
 		chomp($fR_line);
-#=cut
 		if($fR_line =~ /^@/ and ($fR_num%4 == 0)){
 			push @fR_arr,$fR_line;
 			my @fR_tmp_arr = split(/\s/,$fR_line);
@@ -480,13 +463,10 @@ sub fastqWriter{
 	for(1..($fW_num%4)){
 		pop @{$fW_arr_ref};
 	}
-#=block
 	foreach(@{$fW_arr_ref}){
 		chomp;
 		(print $fW_FH $_."\n" and ($fW_stat=1)) || (warn "[fastqWriter]: ".$! and ($fW_stat=0));
 	}
-
-#=cut
 	$fW_num = @{$fW_arr_ref};
 	return($fW_stat,$fW_num);
 }
