@@ -31,7 +31,7 @@ for i in $(ps aux | awk '$1!~/root/ && !/\-bash/{print $1":"$2}');do
 	if [[ $userName=~/[0-9]+/ ]];then
 		userName=$(getent passwd $userName | cut -d ":" -f1);
 	fi
-	startTime=$(ps -eo pid,lstart | grep -w $procID | awk '{sub($1" ","",$0);print $0}' | sed 's|^\s+||g');
+	startTime=$(ps -eo pid,lstart | grep -w $procID | awk '{sub($1" ","",$0);gsub(/^ +/,"",$0);print $0}');
 	runTime=$(ps -eo pid,etime | grep -w $procID | awk '{len=split($NF,arr,"-");if(len==2){timeHMS=arr[2];day=arr[1]}else{timeHMS=arr[1];day=0};len2=split(timeHMS,arr2,":");if(len2==3){hour=arr2[1];minute=arr2[2]}else{hour=0;minute=arr2[1]};if(hour~/^0/){sub("0","",hour)};if(minute~/^0/){sub("0","",minute)};print day*24+hour+sprintf("%.1f",minute/60)}');
 	if [ $numLen -gt 2 -a $memusage -gt $memThres -a $(echo $runTime | awk -v timeThres=$timeThres '{if($1>timeThres){print "1"}else{print "0"}}') -eq 1 ];then
 			echo -e "\n\033[01,35m$memusage M\033[0;00m\t[$startTime]\t\033[02;43m$runTime hrs\033[0;00m\t\033[04;31m$userName\033[0;00m\t$procID\n\n\033[01;34m"$(pmap -x $procID | head -1 | awk '{a=$0;sub($1,"",a);scripts=substr(a,4,10000);len=split(scripts,arr,/ +/);print "\\t\\t"arr[1]" "arr[2]"\\t\\\\""\\n";for(i=3;i<len;i++){if(arr[i]~/^-/ && arr[i]!~/=/){print "\\t\\t\\t"arr[i]" "arr[i+1]"\\t\\\\""\\n";i++;}else{print "\\t\\t\\t"arr[i]"\\t\\\\""\\n";}};print "\\t\\t\\t"arr[len]"\\n"}')"\033[0;00m";
