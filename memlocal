@@ -26,14 +26,14 @@ echo -e "\n\033[01;46mMemory\tStart_Time\t\tTotal_Run_Time\tUser_Name\tPID\tScri
 for i in $(ps aux | awk '$1!~/root/ && !/\-bash/{print $1":"$2}');do
 	userName=$(echo $i |cut -d ":" -f1);
 	procID=$(echo $i | cut -d ":" -f2);
-	neicun=$(cat /proc/$procID/status 2>/dev/null | grep VmRSS | awk '{print sprintf("%.f",$2/1E3)}END{print "0"}' | head -1);
+	memusage=$(cat /proc/$procID/status 2>/dev/null | grep VmRSS | awk '{print sprintf("%.f",$2/1E3)}END{print "0"}' | head -1);
 	numLen=$(echo $neicun | wc -c);
 	if [[ $userName=~/[0-9]+/ ]];then
 		userName=$(getent passwd $userName | cut -d ":" -f1);
 	fi
 	startTime=$(ps -eo pid,lstart | grep -w $procID | awk '{sub($1" ","",$0);print $0}' | sed 's|^\s+||g');
-	runTime=$(ps -eo pid,etime | grep -w $procID | awk '{len=split($NF,arr,"-");if(len==2){timeHMS=arr[2];day=arr[1]}else{timeHMS=arr[1];day=0};len2=split(timeHMS,arr2,":");if(arr2[1]~/^0/){sub("0","",arr2[1])};if(arr2[2]~/^0/){sub("0","",arr2[2])};print day*24+arr2[1]+sprintf("%.1f",arr2[2]/60)}');
-	if [ $numLen -gt 2 -a $neicun -gt $memThres -a $(echo $runTime | awk -v timeThres=$timeThres '{if($1>timeThres){print "1"}else{print "0"}}') -eq 1 ];then
-			echo -e "\n\033[01,35m$neicun M\033[0;00m\t[$startTime]\t\033[02;43m$runTime hrs\033[0;00m\t\033[04;31m$userName\033[0;00m\t$procID\n\n\033[01;34m"$(pmap -x $procID | head -1 | awk '{a=$0;sub($1,"",a);scripts=substr(a,4,10000);len=split(scripts,arr,/ +/);print "\\t\\t"arr[1]" "arr[2]"\\t\\\\""\\n";for(i=3;i<len;i++){if(arr[i]~/^-/ && arr[i]!~/=/){print "\\t\\t\\t"arr[i]" "arr[i+1]"\\t\\\\""\\n";i++;}else{print "\\t\\t\\t"arr[i]"\\t\\\\""\\n";}};print "\\t\\t\\t"arr[len]"\\n"}')"\033[0;00m";
+	runTime=$(ps -eo pid,etime | grep -w $procID | awk '{len=split($NF,arr,"-");if(len==2){timeHMS=arr[2];day=arr[1]}else{timeHMS=arr[1];day=0};len2=split(timeHMS,arr2,":");if(len2==3){hour=arr2[1];minute=arr2[2]}else{hour=0;minute=arr2[1]};if(hour~/^0/){sub("0","",hour)};if(minute~/^0/){sub("0","",minute)};print day*24+hour+sprintf("%.1f",minute/60)}');
+	if [ $numLen -gt 2 -a $memusage -gt $memThres -a $(echo $runTime | awk -v timeThres=$timeThres '{if($1>timeThres){print "1"}else{print "0"}}') -eq 1 ];then
+			echo -e "\n\033[01,35m$memusage M\033[0;00m\t[$startTime]\t\033[02;43m$runTime hrs\033[0;00m\t\033[04;31m$userName\033[0;00m\t$procID\n\n\033[01;34m"$(pmap -x $procID | head -1 | awk '{a=$0;sub($1,"",a);scripts=substr(a,4,10000);len=split(scripts,arr,/ +/);print "\\t\\t"arr[1]" "arr[2]"\\t\\\\""\\n";for(i=3;i<len;i++){if(arr[i]~/^-/ && arr[i]!~/=/){print "\\t\\t\\t"arr[i]" "arr[i+1]"\\t\\\\""\\n";i++;}else{print "\\t\\t\\t"arr[i]"\\t\\\\""\\n";}};print "\\t\\t\\t"arr[len]"\\n"}')"\033[0;00m";
 	fi
 done
