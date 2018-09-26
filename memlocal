@@ -23,7 +23,7 @@ elif [ $# -gt 1 ];then
 fi
 echo -e "\n\033[01;36m$(hostname) | $(ifconfig | grep 192.168 | awk '{split($2,arr,":");print arr[2]}' | head -1)\033[0;00m\t[\033[01;38m$(date)\033[0;00m]";
 echo -e "\n\033[01;46mMemory\tStart_Time\t\tTotal_Run_Time\tUser_Name\tPID\tScript\033[0;00m"
-for i in $(ps aux | awk '$1!~/root/ && !/\-bash/{print $1":"$2}');do
+for i in $(ps -o ruser=userForLongName -e -o pid,ppid,c,stime,tty,time,cmd | awk '$1!~/root/ && !/\-bash/{print $1":"$2}');do
 	userName=$(echo $i |cut -d ":" -f1);
 	procID=$(echo $i | cut -d ":" -f2);
 	memusage=$(cat /proc/$procID/status 2>/dev/null | grep VmRSS | awk '{print sprintf("%.f",$2/1E3)}END{print "0"}' | head -1);
@@ -31,9 +31,10 @@ for i in $(ps aux | awk '$1!~/root/ && !/\-bash/{print $1":"$2}');do
 	if [[ $userName=~/[0-9]+/ ]];then
 		userName=$(getent passwd $userName | cut -d ":" -f1);
 	fi
+	userGroups=$(groups $userName | awk '{for(i=3;i<=NF;i++){if($i!~/NOVO/ && $i!~/google-otp/){a=a"/"$i}}sub("/","",a);print a}')
 	startTime=$(ps -eo pid,lstart | grep -w $procID | awk '{sub($1" ","",$0);gsub(/^ +/,"",$0);print $0}');
 	runTime=$(ps -eo pid,etime | grep -w $procID | awk '{len=split($NF,arr,"-");if(len==2){timeHMS=arr[2];day=arr[1]}else{timeHMS=arr[1];day=0};len2=split(timeHMS,arr2,":");if(len2==3){hour=arr2[1];minute=arr2[2]}else{hour=0;minute=arr2[1]};if(hour~/^0/){sub("0","",hour)};if(minute~/^0/){sub("0","",minute)};print day*24+hour+sprintf("%.1f",minute/60)}');
 	if [ $numLen -gt 2 -a $memusage -gt $memThres -a $(echo $runTime | awk -v timeThres=$timeThres '{if($1>timeThres){print "1"}else{print "0"}}') -eq 1 ];then
-			echo -e "\n\033[01,35m$memusage M\033[0;00m\t[$startTime]\t\033[02;43m$runTime hrs\033[0;00m\t\033[04;31m$userName\033[0;00m\t$procID\n\n\033[01;34m"$(pmap -x $procID | head -1 | awk '{a=$0;sub($1,"",a);scripts=substr(a,4,10000);len=split(scripts,arr,/ +/);print "\\t\\t"arr[1]" "arr[2]"\\t\\\\""\\n";for(i=3;i<len;i++){if(arr[i]~/^-/ && arr[i]!~/=/){print "\\t\\t\\t"arr[i]" "arr[i+1]"\\t\\\\""\\n";i++;}else{print "\\t\\t\\t"arr[i]"\\t\\\\""\\n";}};print "\\t\\t\\t"arr[len]"\\n"}')"\033[0;00m";
+			echo -e "\n\033[01,35m$memusage M\033[0;00m\t[$startTime]\t\033[02;43m$runTime hrs\033[0;00m\t\033[04;31m$userName | $userGroups\033[0;00m\t$procID\n\n\033[01;34m"$(pmap -x $procID | head -1 | awk '{a=$0;sub($1,"",a);scripts=substr(a,4,10000);len=split(scripts,arr,/ +/);print "\\t\\t"arr[1]" "arr[2]"\\t\\\\""\\n";for(i=3;i<len;i++){if(arr[i]~/^-/ && arr[i]!~/=/){print "\\t\\t\\t"arr[i]" "arr[i+1]"\\t\\\\""\\n";i++;}else{print "\\t\\t\\t"arr[i]"\\t\\\\""\\n";}};print "\\t\\t\\t"arr[len]"\\n"}')"\033[0;00m";
 	fi
 done
