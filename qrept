@@ -1,0 +1,310 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Getopt::Std;
+
+chomp(my $os  =  $^O);
+die "Current OS is $os! This program is Linux only!" unless $os=~/linux/i;
+
+my @proId = split /\//,$0;
+my $useage = "
+	###########################################################
+	This is a self-written script for job stat. The background 
+	script is to call \'qstat\';
+	===========================================================
+	To RUN:
+	$proId[-1] -[bdqh]/[ju]<jobID><User>
+	-----------------------------------------------------------
+	-h   Print this help page and exit;
+	-b   Print brief summary;
+	-d   Print full path of each job;
+	-f   Force as the original;
+	-q   Print the queue;
+	-n   Print the node;
+	-t   Print the CPU time;
+	-x   Print the max mem;
+	-u   Specify a user to view the job status;
+	     Separated by \',\' for more than one users;
+	-j   Specify a job ID to view the details;
+	     Separated by \',\' for more than one jobs;
+	-g   Print the job status of the current user group;
+	     This option will call the \"users\" command, no input.
+	-m   Mode of action; [default]: For report only.
+	     if -m del, will delete all the running jobs, either by
+	     -u user or -j jobs.
+	-w   The width of the output; [default]: 200, in 80 - 300.
+	-----------------------------------------------------------
+	\033[01;35mAuthor: zhangyongjian\@novogene.com   For personal use only.\033[0;00m
+	------------------------- E N D ---------------------------
+	###########################################################
+";
+
+my %options=();
+getopts("hbdfqntxu:j:gm:w:a",\%options);
+
+my $mode = "Report";
+die $useage if $options{h};
+
+my ($user,%activeUSR,%jobNode,@jobid,@jobinfo,%que,$width);
+
+$width=180;
+
+if(defined($options{w}) and $options{w}=~/^[1-9][0-9]{1,2}/ and !($options{w}<80 or $options{w}>300)){
+	$width = $options{w};
+	}elsif(defined($options{w})){
+	print "\033[01;43mWarn:\033[0;00m Invalid width parameter [ $options{w} ]!\n";
+	}
+
+if(!defined($options{u}) and !defined($options{g})){
+	$user = `whoami`;
+	chomp($user);
+	}elsif($options{g}){
+	$user = `users | awk '{for(i=1;i<=NF;i++){print \$i}}' | sort -u | awk '{a=a" "\$0}END{print a}'`;
+	$user=~s/^ //g;
+        chomp($user);
+	(length($user)>4 and !$options{a}) ? 1 : ($user="chengfan dongtingting duxinghua guoyang liuyu liwankelan liyongsheng luolei haoxueyu huangwei huangjiaqi jiangxiaoxue jiaziyue jinhaoru jiyuanyuan juzheng miaokui panyongjia ruanyini root sunqianqian wangjianshou wangnian wangyunpeng wangzhi xialili xiangshen yangjunhui yangying zhangjie zhangqin zhangshouwei zhangyongjian zhangyue3 zhaomeng zhengyabiao");
+	}else{
+	$user = $options{u};
+	$user =~ s/\,/ /g;
+	$mode = "user";
+}
+
+if(!defined($options{j})){
+	my @tmparr = `qstat -u $user`;
+	foreach(@tmparr){
+		s/^\s+//;
+		next unless /^\d+/;
+		my @tmparr2 = split /\s+/,$_;
+		push @jobid,$tmparr2[0];
+=block
+		$tmparr2[7] =~ s/\.local$//g;
+		$jobNode{$tmparr2[0]} = $tmparr2[7];
+=cut
+		(defined($activeUSR{$tmparr2[3]}) ? ($activeUSR{$tmparr2[3]}++) : ($activeUSR{$tmparr2[3]}=1)) if($options{g});
+		}
+	if($options{g}){
+		foreach my $usrkey (sort keys %activeUSR){
+			if($activeUSR{$usrkey}>0){
+		#		print "$usrkey\t$activeUSR{$usrkey}\n";
+				my $keyword = "$usrkey:$activeUSR{$usrkey}";
+				$user =~ s/$usrkey/$keyword/e;
+				}
+			}
+		}
+	}else{
+	@jobid = split /\,/,$options{j};
+	$mode = "jobs";
+}
+
+my ($owner,@starttime,$workdir,$memApp,$jobname,$curr_cpu,$curr_vmem,$curr_maxvmem);
+my %month = (
+'Jan' => '01',
+'Feb' => '02',
+'Mar' => '03',
+'Apr' => '04',
+'May' => '05',
+'Jun' => '06',
+'Jul' => '07',
+'Aug' => '08',
+'Sep' => '09',
+'Oct' => '10',
+'Nov' => '11',
+'Dec' => '12',
+);
+foreach(@jobid){
+	chomp;
+	my $id = $_;
+	my @info = `qstat -j $id`;
+	next unless @info>5;
+	$que{$id} = "a";
+	foreach(@info){
+		chomp;
+		if(s/^owner:\s+//){
+			s/^\s+//;
+			$owner = $_;
+			}
+		if(s/^submission_time://){
+			s/^\s+//;
+			@starttime = split /\s{1,}/,$_;
+			$starttime[1]=~s/\s+//g;
+			$starttime[1] = $month{$starttime[1]} if(defined($month{$starttime[1]}));
+			$starttime[2] =~s/^\d$/0$&/;
+			}
+		if(s/^sge_o_workdir://){
+					s/^\s+//;
+					$workdir = $_;
+					if(length($workdir)>50){
+	#			$workdir = substr $workdir,0,50;
+				}
+		}
+		if(s/^hard\sresource_list:\s+virtual_free=// or s/^hard\sresource_list:.+virtual_free=//){
+					s/^\s+//;
+					($memApp,undef) = split /\,/,$_;
+					if(!defined($memApp)){$memApp = "N/A";}
+					}elsif(!defined($memApp)){
+					$memApp = "N/A";
+					}
+		if(s/^job_name:\s+//){
+					s/^\s+//;
+					$jobname = $_;
+					}
+		if(s/^usage\s+\d{1,}:\s+cpu=//){
+					($curr_cpu,undef,undef,$curr_vmem,$curr_maxvmem) = split /\,/,$_;
+					$curr_vmem=~s/^\s{1,}vmem=//;
+					$curr_vmem = undef unless(defined($curr_vmem) and length($curr_vmem)>1);
+					$curr_vmem = "N/A" unless defined($curr_vmem);
+					$curr_maxvmem =~ s/^\s{1,}maxvmem=//;
+					$curr_maxvmem = undef unless(defined($curr_maxvmem) and length($curr_maxvmem)>1);
+					$curr_maxvmem = "N/A" unless defined($curr_maxvmem);
+					$curr_cpu = "N/A" unless (defined($curr_cpu) and length($curr_cpu)>0);
+					}elsif(!defined($curr_vmem)){
+					$curr_vmem = "N/A";
+					$curr_maxvmem = "N/A";
+					$curr_cpu = "N/A";
+					}
+		}
+push @jobinfo,"$id\t$owner\t$jobname\t$memApp\t$curr_vmem\t$starttime[3] $starttime[4]/$starttime[1]/$starttime[2]\t$workdir\t$curr_cpu\t$curr_maxvmem";
+($id,$owner,$jobname,$memApp,$curr_vmem) = (undef,undef,undef,undef,undef);
+}
+
+if(@jobinfo>0){
+	my @arr;
+        foreach(@jobinfo){
+              my @tmp_arr = split /\t/,$_;
+              for(0..@tmp_arr){
+			 if(!defined($arr[$_]) or length($arr[$_])<length($tmp_arr[$_])){
+			      $arr[$_] = $tmp_arr[$_];
+			      }
+			 }
+		      }
+		my $len = length($arr[0]) + 1; # The length +1 of the longest jobID
+		my $len1 = length($arr[1]) + 1;	# The length +1 of the longest user name
+		my $len2 = length($arr[2]) + 1; # The length +1 of the longest script name
+		my $dlen = $len; 
+		my $dlen1 = $len1;
+		my $dlen2 = $len2;
+		$dlen = 7 if($len>7); # The default field length is 7
+		$dlen1 = 16 if($len1>16); # default length 16
+		$dlen2 = 17 if($len2>17); # default length 17
+#=block (my trial)
+		if(!defined($options{q}) and !defined($options{n})){
+			print "\n".("#"x$width)."\n"; # Print 120 #s when not que is needed.
+			}elsif($options{q}){
+			print "\n".("#"x($dlen2+$len1+$len+22+10))."\n"; # Print n #s when que is needed.
+			}elsif($options{n}){
+			print "\n".("#"x($dlen2+$len1+$len+22+20))."\n"; # Print n #s when node is needed.
+			}
+		if($options{b}){
+			print "ID".(" "x($len-2))."User".(" "x($len1-4))."Name".(" "x($dlen2-4))."Dir".(" "x($width-3-$dlen2-$len1-$len))."\n";
+			}elsif($options{t}){
+				print "ID".(" "x($len-2))."User".(" "x($len1-4))."Name".(" "x($dlen2-4))."CPU_TIME".(" "x2)."Dir".(" "x($width-11-2-$dlen2-$len1-$len))."\n";
+			}elsif($options{x}){
+				print "ID".(" "x($len-2))."User".(" "x($len1-4))."Name".(" "x($dlen2-4))."MAX_MEM".(" "x3)."Dir".(" "x($width-10-3-$dlen2-$len1-$len))."\n";
+			}elsif($options{d}){
+			print "ID".(" "x($len-2))."User".(" "x($len1-4))."Script Name".(" "x($dlen2-11))."Working Dir".(" "x($width-11-$dlen2-$len1-$len))."\n";
+			}elsif($options{q}){
+			print "ID".(" "x($len-2))."User".(" "x($len1-4))."Name".(" "x($dlen2-4))."Que".(" "x(10-3))."Sub/Date".(" "x(22-8))."\n";
+			print "".("-"x($dlen2+$len1+$len+22+10))."\n";
+			}elsif($options{n}){
+			print "ID".(" "x($len-2))."User".(" "x($len1-4))."Name".(" "x($dlen2-4))."Que\@Node".(" "x(20-8))."Sub/Date".(" "x(22-8))."\n";
+			print "".("-"x($dlen2+$len1+$len+22+20))."\n";
+			}elsif($options{f}){
+			print "ID".(" "x($len-2))."User".(" "x($len1-4))."Script Name".(" "x($len2-11))."Working Dir".(" "x($width-11-$len2-$len1-$len))."\n";
+			}else{
+			print "ID".(" "x($len-2))."User".(" "x($len1-4))."Name".(" "x($dlen2-4))."Mem_Ap".(" "x(8-6))."Curr_Mem".(" "x(10-8))."Sub/Date".(" "x(22-8))."Dir".(" "x($width-3-22-10-8-$dlen2-$len1-$len))."\n";
+			}
+			print "".("-"x$width)."\n" unless (defined($options{q}) or defined($options{n}));
+#=cut
+		foreach(@jobinfo){
+			chomp;
+			my @arr = split /\t/,$_;
+#=neo block
+			if($options{b}){
+				printf "%-$len"."s%-$len1"."s%-$dlen2"."s%-".($width-$dlen2-$len1-$len)."s\n",$arr[0],substr($arr[1],0,$len1-1),substr($arr[2],0,$dlen2-1),substr($arr[6],0,($width-$dlen2-$len1-$len));
+				}elsif($options{d}){
+				printf "%-$len"."s%-$len1"."s%-$dlen2"."s%-".($width-$dlen2-$len1-$len)."s\n",$arr[0],substr($arr[1],0,$len1-1),substr($arr[2],0,$dlen2-1),substr($arr[6],0,($width-$dlen2-$len1-$len));
+				if((length($arr[6])/($width-$dlen2-$len1-$len))>1){
+					for(1..int(length($arr[6])/($width-$dlen2-$len1-$len))){
+						printf " "x($dlen2+$len1+$len)."%-".($width-$dlen2-$len1-$len)."s\n",substr($arr[6],$_*($width-$dlen2-$len1-$len),($width-$dlen2-$len1-$len));
+						}
+					}
+				}
+#=cut
+				elsif($options{q}){
+					if($que{$arr[0]}){
+					my @arrs0 = `qstat -u $arr[1]`;
+					foreach(@arrs0){
+						chomp;
+						if(s/^\s*$arr[0]/$arr[0]/){
+					#		print "******$arr[1]  $_\n";
+							my @arrs1 = split /\s{1,}/,$_;
+							my @arrs2 = split /\@/,$arrs1[7];
+							$que{$arr[0]} = $arrs2[0];
+							}
+						}
+#=blocks
+				printf "%-$len"."s%-$len1"."s%-$dlen2"."s%-10"."s%-".(22+0)."s\n",$arr[0],substr($arr[1],0,$len1-1),substr($arr[2],0,$dlen2-1),substr($que{$arr[0]},0,9),substr($arr[5],0,(22+0));
+#=cut
+					}
+				}elsif($options{t}){
+					printf "%-$len"."s%-$len1"."s%-$dlen2"."s%-10"."s%-".($width-$dlen2-$len1-$len-11)."s\n",$arr[0],substr($arr[1],0,$len1-1),substr($arr[2],0,$dlen2-1),substr($arr[-2],0,10),substr($arr[6],0,($width-$dlen2-$len1-$len-11));
+				}elsif($options{x}){
+					printf "%-$len"."s%-$len1"."s%-$dlen2"."s%-10"."s%-".($width-$dlen2-$len1-$len-11)."s\n",$arr[0],substr($arr[1],0,$len1-1),substr($arr[2],0,$dlen2-1),substr($arr[-1],0,10),substr($arr[6],0,($width-$dlen2-$len1-$len-11));
+				}elsif($options{n}){
+					if($que{$arr[0]}){
+					my @arrs0 = `qstat -u $arr[1]`;
+					foreach(@arrs0){
+						chomp;
+						if(s/^\s*$arr[0]/$arr[0]/){
+					#		print "******$arr[1]  $_\n";
+							my @arrs1 = split /\s{1,}/,$_;
+							$arrs1[7] =~ s/\.local$//g;
+							my @arrs2 = split /\@/,$arrs1[7];
+							(defined($arrs2[0]) and defined($arrs2[1])) ? ($que{$arr[0]} = $arrs2[0]."@".$arrs2[1]) : ($que{$arr[0]} = "-- Awaiting --");
+							}
+						}
+#=blocks
+				printf "%-$len"."s%-$len1"."s%-$dlen2"."s%-20"."s%-".(22+0)."s\n",$arr[0],substr($arr[1],0,$len1-1),substr($arr[2],0,$dlen2-1),substr($que{$arr[0]},0,19),substr($arr[5],0,(22+0));
+#=cut
+					}
+
+				}elsif($options{f}){
+				printf "%-$len"."s%-$len1"."s%-$len2"."s%-".($width-$len2-$len1-$len)."s\n",$arr[0],substr($arr[1],0,$len1-1),substr($arr[2],0,$len2-1),substr($arr[6],0,($width-$len2-$len1-$len));
+				if((length($arr[6])/($width-$len2-$len1-$len))>1){
+					for(1..int(length($arr[6])/($width-$len2-$len1-$len))){
+						printf " "x($len2+$len1+$len)."%-".($width-$len2-$len1-$len)."s\n",substr($arr[6],$_*($width-$len2-$len1-$len),($width-$len2-$len1-$len));
+						}
+					}
+
+				}else{
+				printf "%-".$len."s%-$len1"."s%-$dlen2"."s%-8s%-10s%-22s%-".($width-22-10-8-$dlen2-$len1-$len)."s\n",$arr[0],$arr[1],substr($arr[2],0,$dlen2-1),substr($arr[3],0,8-1),substr($arr[4],0,10-1),substr($arr[5],0,22-1),substr($arr[6],0,($width-22-10-8-$dlen2-$len1-$len));
+				}
+			}
+		}else{
+	#	print "No job of $user is now running!\n";
+		die "No job of $user is now running!\n";
+	}
+	if(!$options{j}){
+#		print "\nUser \[ \e[01;35m$user\e[0;00m \] :  \e[01;34m".@jobinfo."\e[0;00m jobs are running!\n" unless (@jobinfo==1);
+		print "\nUser \[ \e[01;35m$user\e[0;00m \] :  \e[01;34m".@jobinfo."\e[0;00m jobs are running!\t" unless (@jobinfo==1);
+		print "\nUser \[ \e[01;35m$user\e[0;00m \] :  \e[01;34m".@jobinfo."\e[0;00m job is running!\t" unless (@jobinfo>1);
+#		print "\nUser \[ \e[01;35m$user\e[0;00m \] :  \e[01;34m".@jobinfo."\e[0;00m job is running!\n" unless (@jobinfo>1);
+		chomp(my $date = `date`);
+		print "\t[ \e[02;33m$date\e[0;00m ]\n\n";
+	}
+if(defined($options{m})  and $options{m}=~/^del$/i){
+	die "Not supported for group users!\n" if($options{g});
+	print "This command would delete all the running jobs. Continue? [Y/N]\nYour choice: ";
+	my $cmd = <STDIN>;
+	chomp $cmd;
+	die "\e[0;42mYour choice $cmd is proposed for Abort! Then program dies!\e[0;00m\n" unless $cmd=~/^Y$/i;
+	warn "Now we will delete all the running jobs! We\'ll proceed in 10 seconds! Ctrl + C to terminate!\n";
+	sleep(10);
+	if($mode eq "Report"){
+		system("qdel -u $user");
+		}elsif($mode eq "user"){
+		system("qdel -u $user");
+		}elsif($mode eq "jobs"){
+		system("qdel $options{j}");
+		}
+}
