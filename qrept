@@ -62,7 +62,7 @@ if(!defined($options{u}) and !defined($options{g})){
 	$user = `users | awk '{for(i=1;i<=NF;i++){print \$i}}' | sort -u | awk '{a=a" "\$0}END{print a}'`;
 	$user=~s/^ //g;
         chomp($user);
-	(length($user)>4 and !$options{a}) ? 1 : ($user=`for i in \$(qconf -suserl);do status=\$(groups \$i | grep -E \$(groups $user | awk '{group=\$3;for(i=4;i<=NF;i++){group=group"|"\$i}}END{print group}') | wc -l);if [ \$status -eq 1 ];then echo \$i;fi;done | awk '{a=a" "\$1} END{print a}'`);
+	(length($user)>4 and !$options{a}) ? 1 : ($user=`for i in \$(qconf -suserl);do status=\$(groups \$i | grep -E \$(groups $user | awk '{group=\$3;for(i=4;i<=NF;i++){group=group"|"\$i}}END{sub(" ","",a);printf group}') | wc -l);if [ \$status -eq 1 ];then echo \$i;fi;done | awk '{a=a" "\$1} END{print a}'`);
 	}else{
 	$user = $options{u};
 	$user =~ s/\,/ /g;
