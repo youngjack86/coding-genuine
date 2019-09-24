@@ -86,8 +86,12 @@ if(!defined($options{j})){
 		foreach my $usrkey (sort keys %activeUSR){
 			if($activeUSR{$usrkey}>0){
 		#		print "$usrkey\t$activeUSR{$usrkey}\n";
-				my $keyword = "$usrkey:$activeUSR{$usrkey}";
-				$user =~ s/$usrkey/$keyword/e;
+				my $usrkey2 = $usrkey;
+				if($user =~ /($usrkey[^\s]*)/){
+					$usrkey2 = $1;
+				}
+				my $keyword = "$usrkey2:$activeUSR{$usrkey}";
+				$user =~ s/$usrkey[^\s]*/$keyword/e;
 				}
 			}
 		}
