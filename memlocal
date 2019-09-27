@@ -7,6 +7,8 @@ set -e
 # memory and > 4 min by default.
 ####################################
 
+# Please note that pmap need root
+
 if [ $# -eq 0 ];then
 	memThres=500;
 	timeThres=0.1;
@@ -35,6 +37,6 @@ for i in $(ps -o ruser=userForLongName -e -o pid,ppid,c,stime,tty,time,cmd | awk
 	startTime=$(ps -eo pid,lstart | grep -w $procID | awk '{sub($1" ","",$0);gsub(/^ +/,"",$0);print $0}');
 	runTime=$(ps -eo pid,etime | grep -w $procID | awk '{len=split($NF,arr,"-");if(len==2){timeHMS=arr[2];day=arr[1]}else{timeHMS=arr[1];day=0};len2=split(timeHMS,arr2,":");if(len2==3){hour=arr2[1];minute=arr2[2]}else{hour=0;minute=arr2[1]};if(hour~/^0/){sub("0","",hour)};if(minute~/^0/){sub("0","",minute)};print day*24+hour+sprintf("%.1f",minute/60)}');
 	if [ $numLen -gt 2 -a $memusage -gt $memThres -a $(echo $runTime | awk -v timeThres=$timeThres '{if($1>timeThres){print "1"}else{print "0"}}') -eq 1 ];then
-			echo -e "\n\033[01,35m$memusage M\033[0;00m\t[$startTime]\t\033[02;43m$runTime hrs\033[0;00m\t\033[04;31m$userName | $userGroups\033[0;00m\t$procID\n\n\033[01;34m"$(pmap -x $procID | head -1 | awk '{a=$0;sub($1,"",a);scripts=substr(a,4,10000);len=split(scripts,arr,/ +/);print "\\t\\t"arr[1]" "arr[2]"\\t\\\\""\\n";for(i=3;i<len;i++){if(arr[i]~/^-/ && arr[i]!~/=/){print "\\t\\t\\t"arr[i]" "arr[i+1]"\\t\\\\""\\n";i++;}else{print "\\t\\t\\t"arr[i]"\\t\\\\""\\n";}};print "\\t\\t\\t"arr[len]"\\n"}')"\033[0;00m";
+			echo -e "\n\033[01,35m$memusage M\033[0;00m\t[$startTime]\t\033[02;43m$runTime hrs\033[0;00m\t\033[04;31m$userName | $userGroups\033[0;00m\t$procID\n\n\033[01;34m"$(pmap -x $procID | head -1 | awk '{a=$0;sub($1,"",a);scripts=substr(a,4,10000);len=split(scripts,arr,/ +/);lastArg=arr[len];gsub(/[ ;#]+/,"",lastArg);if(length(lastArg)==0){len=len-1};if(len>2){print "\\t\\t"arr[1]" "arr[2]"\\t\\\\""\\n";}else{tag="\\t\\t"arr[1];for(i=2;i<=len;i++){tag=tag" "arr[i]};tag=tag"\\t\\n";print tag};for(i=3;i<len;i++){if(arr[i]~/^-/ && arr[i]!~/=/){tag="\\t\\\\""\\n";if(i==(len-1)){tag="\\n"};print "\\t\\t\\t"arr[i]" "arr[i+1]""tag;i=i+1;}else{print "\\t\\t\\t"arr[i]"\\t\\\\""\\n";}};if(i==len){print "\\t\\t\\t"arr[len]"\\n"}}')"\033[0;00m";
 	fi
 done
