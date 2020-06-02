@@ -124,6 +124,62 @@ def matchWithMismatch(seq,primer,maxMis=1):
     else:
             return matchWithMismatchSE(seq,primer,maxMis)
 
+def cacheKmer(inputType, klen = 7, byKey = False, removeFrequent = 10):
+    uniqKmerDict = {}
+    numUniq = 0
+    if isinstance(inputType, dict):
+        if byKey:
+            for key in inputType.keys():
+                for idx in range(len(key) - klen):
+                    kmer = key[idx:idx+klen]
+                    if not kmer in uniqKmerDict:
+                        uniqKmerDict[kmer] = {'sample':[],'count':0}
+                    uniqKmerDict[kmer]['sample'].append(inputType[key])
+                    uniqKmerDict[kmer]['count'] += 1
+        else:
+            for key in inputType.keys():
+                val = inputType[key]
+                for idx in range(len(val) - klen):
+                    kmer = val[idx:idx+klen]
+                    if not kmer in uniqKmerDict:
+                        uniqKmerDict[kmer] = {'sample':[],'count':0}
+                    uniqKmerDict[kmer]['sample'].append(key)
+                    uniqKmerDict[kmer]['count'] += 1
+    elif isinstance(inputType, list):
+        for seq in inputType:
+            for idx in range(len(seq) - klen):
+                    kmer = seq[idx:idx+klen]
+                    if not kmer in uniqKmerDict:
+                        uniqKmerDict[kmer] = {'sample':[],'count':0}
+                    uniqKmerDict[kmer]['sample'].append(seq)
+                    uniqKmerDict[kmer]['count'] += 1
+    elif isinstance(inputType,str):
+        for idx in range(len(inputType) - klen):
+            kmer = inputType[idx:idx+klen]
+            if not kmer in uniqKmerDict:
+                uniqKmerDict[kmer] = {'sample':[],'count':0}
+            uniqKmerDict[kmer]['sample'].append(inputType)
+            uniqKmerDict[kmer]['count'] += 1
+    else:
+        print '\n[cacheKmer]: %s is not accepted for kmer cache!' % str(inputType)
+        return 0
+    for k,v in uniqKmerDict.items():
+        if v['count'] == 1 or len(set(v['sample'])) == 1:
+            numUniq += 1
+        if len(set(v['sample'])) >= removeFrequent:
+            uniqKmerDict.popitem(k)
+        else:
+            uniqKmerDict[k]['sample'] = list(set(v['sample']))
+            uniqKmerDict[k]['count'] = len(set(v['sample']))
+    return numUniq,uniqKmerDict
+
+def fastDeter(kmerDictSeq,kmerDictLib):
+    tmpSampleList = []
+    for key in kmerDictSeq.keys():
+        if key in kmerDictLib:
+            tmpSampleList += kmerDictLib[key]['sample']
+    return set(tmpSampleList)
+
 def readSgFile(fh):
     sgDict = {}
     if fh:
@@ -148,11 +204,12 @@ def main():
     fh3 = fileHandler(sgFile,'r')
     sgDict1 = readSgFile(fh3)
     fh3.close()
-    sgList = sorted(sgDict1.keys(), key = lambda x:len(sgDict1[x]), reverse = True)
+    #sgList = sorted(sgDict1.keys(), key = lambda x:len(sgDict1[x]), reverse = True)
     matchCount = {}
     total_read = mapped = unmapped = 0
     memoryDict = {}
     numMemDict = 0
+    sgRNAkmerDict = cacheKmer(sgDict1)
     while True:
         read1 = fastqReader(fh1,1)
         read2 = fastqReader(fh2,1)
@@ -176,7 +233,10 @@ def main():
                 read1.pop(i)
                 read2.pop(i)
         for fqList1 in read1:
-            for sgName in sgList:
+            read1seqkmerDict = cacheKmer(fqList1[1])
+            sampleNameSet1 = fastDeter(read1seqkmerDict[1],sgRNAkmerDict[1])
+            sampleNameList1 = sorted(sampleNameSet1, key = lambda x:len(sgDict1[x]), reverse = True)
+            for sgName in sampleNameList1:
                 match1 = matchWithMismatch(fqList1[1],sgDict1[sgName],1)
                 if match1:
                     matchList1.append(sgName)
@@ -186,7 +246,10 @@ def main():
                 matchList1.append('')
         status = 0
         for fqList2 in read2:
-            for sgName in sgList:
+            read2seqkmerDict = cacheKmer(fqList2[1])
+            sampleNameSet2 = fastDeter(read2seqkmerDict[1],sgRNAkmerDict[1])
+            sampleNameList2 = sorted(sampleNameSet2, key = lambda x:len(sgDict1[x]), reverse = True)
+            for sgName in sampleNameList2:
                 match1 = matchWithMismatch(fqList2[1],sgDict1[sgName],1)
                 if match1:
                     matchList2.append(sgName)
