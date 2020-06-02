@@ -217,7 +217,7 @@ def main():
             print '\n[main]: read file finished!'
             break
         if total_read % 1000000 == 0:
-            print '\n[%s] [main] read %d reads ...' % (str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")),total_read)
+            print '\n[%s] [main] read %.2f M reads ...' % (str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")),1.0 * total_read / 1e6)
         total_read += 1
         matchList1 = []
         matchList2 = []
