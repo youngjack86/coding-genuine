@@ -23,7 +23,8 @@ elif [ $# -gt 1 ];then
 	memThres=500;
 	timeThres=0.1;
 fi
-echo -e "\n\033[01;36m$(hostname) | $(ifconfig | grep 192.168 | awk '{split($2,arr,":");print arr[2]}' | head -1)\033[0;00m\t[\033[01;38m$(date)\033[0;00m]";
+#echo -e "\n\033[01;36m$(hostname) | $(ifconfig | grep 192.168 | awk '{split($2,arr,":");print arr[2]}' | head -1)\033[0;00m\t[\033[01;38m$(date)\033[0;00m]";
+echo -e "\n\033[01;36m$(hostname) | $(hostname -I | awk '{a=a" / "$1}END{print substr(a,4)}' | head -1)\033[0;00m\t[\033[01;38m$(date)\033[0;00m]";
 echo -e "\n\033[01;46mMemory\tStart_Time\t\tTotal_Run_Time\tUser_Name\tPID\tScript\033[0;00m"
 for i in $(ps -o ruser=userForLongName -e -o pid,ppid,c,stime,tty,time,cmd | awk '$1!~/root/ && !/\-bash/{print $1":"$2}');do
 	userName=$(echo $i |cut -d ":" -f1);
